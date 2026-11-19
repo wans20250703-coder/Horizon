@@ -1,0 +1,163 @@
+# Daily Horizon Summary — fork-ready GitHub Actions workflow
+#
+# Source: adapted from the upstream template in Thysrael/Horizon
+#   .github/workflows/daily-summary.yml.disabled
+#   (commit 12d5fbde4d9e0776a48618ea65d16fe6d1e1b606, read 2026-11-17).
+#   Upstream ships that file DISABLED (note the `.disabled` suffix);
+#   this file is the same pipeline, enabled and renamed.
+#
+# INSTALL (in your fork — see README.md in this folder):
+#   1. Fork https://github.com/Thysrael/Horizon
+#   2. Edit data/config.github.json in the fork (provider, model, sources).
+#   3. Copy this file to .github/workflows/daily-summary.yml in the fork
+#      and commit it.
+#   4. Add the secrets listed under `env:` below in the fork's
+#      Settings → Secrets and variables → Actions.
+#   5. Enable GitHub Pages from the gh-pages branch (Settings → Pages).
+#
+# WHAT IT DOES
+#   Every morning it checks out the fork, installs Python + uv, runs
+#   `uv run horizon --hours 24` (the repo's documented entry point:
+#   `horizon` = src.main:main, see pyproject.toml), then publishes the
+#   generated briefing site (docs/) to the gh-pages branch and commits
+#   the raw Markdown summaries (data/summaries/) back to main.
+#
+# SCHEDULE
+#   cron "0 22 * * *" is UTC. 22:00 UTC = 06:00 next day CST (UTC+8).
+#   GitHub may delay scheduled runs; upstream's own comment notes the
+#   same (their template used 23:00 UTC to offset observed delay).
+#   workflow_dispatch is kept so you can run it manually any time.
+#
+# SECRETS — placeholders only, never put a real key in this file.
+#   REQUIRED by the default data/config.github.json (OpenRouter free model):
+#     OPENROUTER_API_KEY — free key from openrouter.ai/keys (no card);
+#       the configured model inclusionai/ling-3.2-flash:free costs $0.
+#   REQUIRED only if you switch provider in data/config.github.json:
+#     DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY
+#     (see data/config.example.json: openai/gpt-4 uses OPENAI_API_KEY;
+#      gemini uses GOOGLE_API_KEY; upstream's config.github.json uses
+#      deepseek/deepseek-v4-flash with DEEPSEEK_API_KEY)
+#   OPTIONAL, only if the matching feature/source is enabled:
+#     LWN_KEY            — private LWN.net feed URL ${LWN_KEY} in config
+#     HORIZON_WEBHOOK_URL — webhook delivery (Feishu in config.github.json)
+#     APIFY_TOKEN        — Twitter/X scraping (see .env.example)
+#     FIRECRAWL_API_KEY / OUTCRAWL_API_KEY / SPECSTREAM_API_KEY
+#                        — optional full-text extractors (see .env.example)
+#     MINIMAX_API_KEY    — listed in .env.example; no provider in the
+#                          shipped configs references it by default
+#   GITHUB_TOKEN is automatic — do NOT add it as a secret.
+#
+# COST NOTE
+#   GitHub Actions itself is free within the free tier for a public repo.
+#   The LLM calls are free with the default config: OpenRouter's
+#   inclusionai/ling-3.2-flash:free model costs $0, and the
+#   OPENROUTER_API_KEY is free to create (no card). Switch provider in
+#   data/config.github.json and the calls bill that provider's account
+#   instead. No card is bound by this workflow; the key must already
+#   exist (create it on the provider's own site first).
+
+name: Daily Horizon Summary
+
+on:
+  schedule:
+    # 22:00 UTC = 06:00 next day CST (UTC+8)
+    - cron: "0 22 * * *"
+  workflow_dispatch: # Allow manual trigger from the Actions tab
+
+# Avoid two runs overlapping (e.g. a delayed scheduled run + a manual one).
+concurrency:
+  group: daily-horizon-summary
+  cancel-in-progress: false
+
+jobs:
+  daily-summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # Needed to commit summaries and publish gh-pages
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.26"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Prepare GitHub Actions config
+        # The fork's deployment config. Edit data/config.github.json in
+        # the fork BEFORE enabling this workflow: provider, model and
+        # sources live there, not in this file. The shipped upstream
+        # version uses provider deepseek / model deepseek-v4-flash and
+        # enables the Feishu webhook — change the ai block to the
+        # OpenRouter free model (provider openai, model
+        # inclusionai/ling-3.2-flash:free, base_url
+        # https://openrouter.ai/api/v1, api_key_env OPENROUTER_API_KEY,
+        # throttle_sec 4.5) and set webhook.enabled false if you do not
+        # want Feishu notifications, so OPENROUTER_API_KEY is the only
+        # key the run needs.
+        run: cp data/config.github.json data/config.json
+
+      - name: Run Horizon
+        env:
+          # Map secrets to the environment variables the config expects
+          # (config `ai.api_key_env` / `webhook.url_env` / `${VAR}` refs).
+          # Empty secrets expand to empty strings and are ignored unless
+          # the active config actually references that variable.
+          # --- required by the default config.github.json ---
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # --- required only if you switch provider in config ---
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          # --- optional, feature-gated ---
+          LWN_KEY: ${{ secrets.LWN_KEY }}
+          HORIZON_WEBHOOK_URL: ${{ secrets.HORIZON_WEBHOOK_URL }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          OUTCRAWL_API_KEY: ${{ secrets.OUTCRAWL_API_KEY }}
+          SPECSTREAM_API_KEY: ${{ secrets.SPECSTREAM_API_KEY }}
+        run: uv run horizon --hours 24
+
+      - name: Check output was generated
+        run: |
+          ls -l data/summaries/ || echo "WARNING: data/summaries/ not found"
+          ls -l docs/ | head -20
+
+      - name: Commit raw summaries back to main
+        # Upstream's template only publishes docs/ to gh-pages and does
+        # NOT commit data/summaries/ to main. This step is an addition:
+        # it keeps the Markdown briefings in the repo history as well.
+        # It is a no-op (no commit, no failure) when there is nothing
+        # new — e.g. if data/summaries/ is gitignored in a future
+        # upstream version, `git add` simply stages nothing.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/summaries docs || true
+          git diff --cached --quiet || git commit -m "📰 Daily summary: $(date +'%Y-%m-%d')"
+          git push || echo "Nothing to push or push failed — see log"
+
+      - name: Set current date as environment variable
+        run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          keep_files: true # Keep existing summaries on gh-pages branch
+          commit_message: "📝 Daily Summary: ${{ env.DATE }}"
+          publish_branch: gh-pages
+          enable_jekyll: true
