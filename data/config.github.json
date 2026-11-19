@@ -19,7 +19,7 @@
     "default_profile": "tech-news",
     "profile_settings": {
       "tech-news": {
-        "threshold": 7.0,
+        "threshold": 5.5,
         "topic_dedup": true
       },
       "tech-blog": {
@@ -119,6 +119,41 @@
         "url": "https://lwn.net/headlines/full_text?key=${LWN_KEY}",
         "enabled": true,
         "category": "linux-kernel",
+        "profile": "tech-news"
+      },
+      {
+        "name": "BBC News 中文",
+        "url": "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml",
+        "enabled": true,
+        "category": "world-news",
+        "profile": "tech-news"
+      },
+      {
+        "name": "纽约时报中文网",
+        "url": "https://cn.nytimes.com/rss/",
+        "enabled": true,
+        "category": "china-news",
+        "profile": "tech-news"
+      },
+      {
+        "name": "NHK News",
+        "url": "https://www3.nhk.or.jp/rss/news/cat0.xml",
+        "enabled": true,
+        "category": "japan-news",
+        "profile": "tech-news"
+      },
+      {
+        "name": "联合早报",
+        "url": "https://www.zaobao.com.sg/rss/realtime.xml",
+        "enabled": true,
+        "category": "singapore-news",
+        "profile": "tech-news"
+      },
+      {
+        "name": "The Guardian World",
+        "url": "https://www.theguardian.com/world/rss",
+        "enabled": true,
+        "category": "world-news",
         "profile": "tech-news"
       }
     ],
